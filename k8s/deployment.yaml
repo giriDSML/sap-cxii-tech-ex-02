@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders-service
+  labels:
+    app: orders-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: orders-service
+  template:
+    metadata:
+      labels:
+        app: orders-service
+    spec:
+      # Pod-level security
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+
+      containers:
+        - name: orders-service
+          image: orders-service:latest
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+
+          # Inject all ConfigMap keys as environment variables
+          envFrom:
+            - configMapRef:
+                name: orders-service-config
+
+          # Container-level security
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+
+          # Resource limits
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+
+          # Liveness probe
+          # Checks if the application is alive.
+          # If this fails, Kubernetes restarts the pod.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          # Readiness probe
+          # Checks if the application is ready to serve traffic.
+          # If this fails, Kubernetes removes the pod from the service.
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          # Volume mounts
+          volumeMounts:
+            - name: db-storage
+              mountPath: /app/db
+            - name: artifacts-storage
+              mountPath: /app/artifacts
+            - name: logs-storage
+              mountPath: /app/logs
+
+      volumes:
+        - name: db-storage
+          emptyDir: {}
+        - name: artifacts-storage
+          emptyDir: {}
+        - name: logs-storage
+          emptyDir: {}

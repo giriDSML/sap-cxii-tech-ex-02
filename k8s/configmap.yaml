@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orders-service-config
+  labels:
+    app: orders-service
+data:
+  # Database
+  DB_PATH: "/app/db/orders.db"
+
+  # Semantic index
+  SEMANTIC_INDEX_ROOT: "/app/artifacts/semantic_index"
+  SEMANTIC_ACTIVE_INDEX_FILE: "/app/artifacts/semantic_index/active_index.json"
+  EMBEDDING_MODEL_NAME: "sentence-transformers/all-MiniLM-L6-v2"
+
+  # Search defaults
+  DEFAULT_TOP_K: "5"
+  MAX_TOP_K: "20"
+
+  # NL2SQL
+  NL2SQL_LOG_PATH: "/app/logs/nl2sql_requests.jsonl"
+  DEFAULT_TENANT_ID: "tenant_US"
+
+  # Semantic index reload
+  SEMANTIC_RELOAD_URL: "http://localhost:8000/orders/semantic_index/reload"
+
+  # Retry hook (should be false in production)
+  FORCE_NL2SQL_RETRY: "false"
+  ENABLE_NL2SQL_RETRY: "true"
