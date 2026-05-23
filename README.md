@@ -343,7 +343,7 @@ This makes it well-suited for a constrained, schema-grounded Text2SQL system.
 ## 4.a System Prompt
 
 > System Prompt used in the Text2SQL engine.  
-> Note: We can reduce token usage by removing unnecessary fields such as original currency and original amount.
+> **Note**: We should reduce sending the full schema and should limit to only columns relevant in the context. Also PII features to masked in real world use case. We should also have SQL validation gate (post-generation but pre-execution) just to ensure LLM gives only SELECT query
 
 ---
 
@@ -362,7 +362,7 @@ CONTEXT
 
 Available schema:
 Table: orders
-Columns: der_id TEXT, customer_id TEXT, order_date TEXT, amount_usd REAL, original_amount REAL, original_currency TEXT, updated_at TEXT
+Columns: order_id TEXT, customer_id TEXT, order_date TEXT, amount_usd REAL, original_amount REAL, original_currency TEXT, updated_at TEXT
 
 You DO NOT have access to actual data — only schema metadata.
 
@@ -542,9 +542,11 @@ For this assessment, logging is implemented locally to keep the solution lightwe
 ---
 
 # 4.b Semantic Search:
-This project uses semantic (vector-based) search instead of SQL filtering by enriching each record with additional textual features for embedding. We introduce Recency_Value (recent vs old based on time thresholds) and Monetary_Value (high-value vs low-value based on amount distribution).
+This project uses semantic (vector-based) search by enriching each record with additional textual features for embedding. We introduce Recency_Value (recent vs old based on date distribution) and Monetary_Value (high-value vs low-value based on amount distribution). 
 
-We also derive a combined Recency_Monetary_Value label (e.g., Recent_HighValue, Recent_Cheap, Old_HighValue, Old_Cheap) using configurable thresholds such as 30 days for “recent”, 1 year for “old”, >$300 for “high value”, and <$50 for “low value”, enabling more accurate semantic retrieval through better clustering in vector space.
+We also derive a combined Recency_Monetary_Value label (e.g., Recent_HighValue, Recent_Cheap, Old_HighValue, Old_Cheap) using configurable thresholds such as 30 days for “recent”, 1 year for “old”, >$300 for “high value”, and <$50 for “low value”, enabling more accurate semantic retrieval through better clustering in vector space. 
+
+Assumption is this search is not meant for SQL filter/analytics queries , its only a semantic search 
 
 ### Why FAISS 
 FAISS index is used for scalable nearest-neighbor vector retrieval, avoiding brute-force NumPy comparison against every vector with O(n) linear search complexity while providing optimized similarity search and storage for embedding-based semantic search.
@@ -556,7 +558,7 @@ It is lightweight, CPU-friendly, quick to load into memory, and provides good RO
 The system uses a blue/green index strategy where one index serves active search traffic while the inactive index is rebuilt during ETL.
 After a successful rebuild, the active pointer is updated and the API reload endpoint switches the retriever to the new index without blocking in-flight requests.
 
-# 4.d 
+# 4.d Architectural Extension
 #### 1 Tenant Isolation for Vector Index
 
 For tenant isolation in the vector index, there are two common options: a shared FAISS index with namespace filtering, or a separate index per tenant.
@@ -569,20 +571,23 @@ For an enterprise-grade design, the preferred approach is to use **regional cont
 #### 2 LLM Backend Routing per Tenant
 Some enterprise customers may require requests to be routed to an on-premise or privately hosted model, such as a private Llama deployment, instead of a public cloud API.
 
-In this architecture, the routing layer sits between the application/orchestration layer and the LLM providers. The application sends the tenant ID, prompt, and request context to an LLM router, and the router decides whether the request should be served by a cloud API, a private hosted endpoint, or an on-premise model.
+In this architecture, the routing layer sits between the application/orchestration layer and the LLM providers. The application sends the tenant ID, prompt, and request context to an LLM router, and the router decides whether the request should be served by a cloud API, a private hosted endpoint, or an on-premise model. ( This is what we have done in this assessment)
 
 This follows an **AI Gateway / LLM Gateway** pattern, where tenant-to-provider mapping is handled centrally. To keep the prompt layer model-agnostic, prompts are maintained in a provider-neutral format, while provider-specific differences such as API parameters, model names, authentication, and response parsing are handled inside the adapter layer.
 #### 3 PII Guardrails in the NL-to-SQL Pipeline
 
-The NL-to-SQL pipeline applies guardrails before the user question and schema context are sent to the LLM. These include schema minimization, PII redaction, and query intent validation to reduce exposure of sensitive information such as `customer_id` and monetary values.
+The NL-to-SQL pipeline applies guardrails before the user question and schema context are sent to the LLM. These include schema minimization, PII redaction(prompt sanitisation when user himself asks with PII), and query intent validation to reduce exposure of sensitive information such as `customer_id` and monetary values.( as we did in Text2SQL agnet). To be more strict from security stand, we should have schema abstraction layer(i.e customer_id=attribute22),Row level and column level security even before going to LLM.
 
 A strict zero-trust approach is followed for PII handling. Sensitive values are masked before reaching the LLM, and the model is instructed to use only the provided schema and not infer or generate hidden identifiers. In our assessment also we have masked the PIIs before sending to LLMs
 
-If the LLM is a third-party cloud API, these controls are critical to reduce external data exposure. If the LLM is deployed on-premise, the exposure risk is reduced, but the same guardrails are still required to prevent over-broad SQL generation, unauthorized access patterns, prompt injection, and unsafe query behavior.
+If the LLM is a third-party cloud API, these controls are critical to reduce external data exposure. If the LLM is deployed on-premise, the exposure risk is reduced, but the same guardrails are still required to prevent any internal misuse and compromise
 #### 4 Key Architectural Decision and Trade-off
 
 My architectural decision is to use **per-tenant, region-bound isolation** as the default approach for retrieval and inference policy enforcement.
 
 This means each tenant can have its own isolated vector index and LLM routing policy within the required geography, which improves data isolation, compliance alignment, and reduces the risk of cross-tenant data leakage.
 
-The trade-off accepted is higher infrastructure cost and operational complexity compared to a shared-index model, but this is justified for enterprise workloads where security, regulatory compliance, and tenant-level isolation are more important than minimizing infrastructure footprint.Also the avaiability 
+The trade-off accepted is higher infrastructure cost and operational complexity compared to a shared-index model, but this is justified for enterprise workloads where security, regulatory compliance, and tenant-level isolation are more important than minimizing infrastructure footprint. 
+
+
+
