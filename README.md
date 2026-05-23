@@ -587,7 +587,7 @@ My architectural decision is to use **per-tenant, region-bound isolation** as th
 
 This means each tenant can have its own isolated vector index and LLM routing policy within the required geography, which improves data isolation, compliance alignment, and reduces the risk of cross-tenant data leakage.
 
-The trade-off accepted is higher infrastructure cost and operational complexity compared to a shared-index model, but this is justified for enterprise workloads where security, regulatory compliance, and tenant-level isolation are more important than minimizing infrastructure footprint. 
+The trade-off accepted is higher infrastructure cost and operational complexity compared to a shared-index model, but this is justified for enterprise workloads where security, regulatory compliance, and tenant-level isolation are more important than minimizing infrastructure footprint. (Please refer to the Multitenant.md file)
 
 
 
