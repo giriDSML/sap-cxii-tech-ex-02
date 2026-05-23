@@ -1,7 +1,3 @@
-# SAP CX II AI Technical Exercise
-
-An enterprise-grade AI-powered order management system that demonstrates production-ready architecture for intelligent order querying. Combines natural language processing, semantic search, and multi-provider LLM integration to enable intelligent analysis of customer orders with responsible AI safeguards.
-
 ## 🎯 Overview
 
 This project showcases a complete AI application stack featuring:
@@ -57,7 +53,7 @@ This project showcases a complete AI application stack featuring:
 - **ETL Pipeline**: Complete extract, transform, load, and versioning pipeline
 - **Schema Management**: Automated SQLite schema creation and migration
 - **Blue-Green Indexing**: Zero-downtime vector index updates and deployment
-- **Data Versioning**: Track and manage data versions across transformations
+
 
 ### Enterprise & Operations
 - **Tenant Multi-Tenancy**: Tenant-aware LLM routing with configurable provider mapping
@@ -148,8 +144,7 @@ sap-cxii-tech-ex-02/
 │
 ├── data/                        # Data files
 │   ├── order.csv               # Sample order data
-│   ├── processed/              # Transformed data
-│   └── sample/                 # Sample datasets
+│ 
 │
 ├── db/                          # Database files
 │   ├── schema.sql              # Database schema
@@ -168,499 +163,344 @@ sap-cxii-tech-ex-02/
     └── generate_orders_100_cases.py  # Generate test data
 ```
 
-## 🛠️ Technology Stack
 
-| Category | Technology |
-|----------|-----------|
-| **Framework** | FastAPI 0.115.0 |
-| **Server** | Uvicorn 0.30.6 |
-| **Database** | SQLite with SQLAlchemy 2.0.35 |
-| **Vector Search** | FAISS CPU 1.8.0 |
-| **Embeddings** | Sentence-Transformers 3.1.1 |
-| **LLM Providers** | OpenAI 1.47.0, Anthropic, Ollama |
-| **Data Processing** | Pandas 2.2.2, NumPy 1.26.4 |
-| **Validation** | Pydantic 2.9.2 |
-| **Containerization** | Docker (multi-stage build) |
-| **Orchestration** | Kubernetes |
-| **Testing** | pytest 8.3.3 |
-| **HTTP Client** | httpx 0.27.2 |
+### Solution Writeup
 
-## 🔧 Configuration
+# ETL Part
+---
 
-Environment variables control the application behavior. Create a `.env` file or set them directly:
+## 1. ETL Job Processing Logic
 
-```env
-# Database
-DB_PATH=db/orders.db
-NL2SQL_LOG_PATH=logs/nl2sql_requests.jsonl
+When the ETL job runs, it:
 
-# Tenant Routing (maps tenants to LLM providers)
-DEFAULT_TENANT_ID=tenant_US
-# TENANT_LLM_MAP = {"tenant_KSA": "ollama", "tenant_US": "openai", "tenant_EU": "openai"}
+- Loads processed order records into SQLite (including required transformations and validations)
+- Rebuilds the semantic search index after data load
 
-# OpenAI Configuration
-OPENAI_API_KEY=sk-proj-...
-OPENAI_MODEL=gpt-4o-mini
+### Handling Missing Values (Nulls)
 
-# Ollama Configuration (local LLM)
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama3.1:8b
+For null values in order amount:
 
-# Anthropic Configuration (optional)
-ANTHROPIC_API_KEY=
-ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
+- A possible approach is to use the customer's historical average purchase amount
+- However, based on the business rule, missing values are currently set to **0**
 
-# Responsible AI
-MAX_QUESTION_LENGTH=1000
-MIN_QUESTION_LENGTH=3
-ENABLE_ABUSE_GUARDRAILS=true
-```
+### Data Assumptions
 
-## 🚀 Quick Start
-
-### Prerequisites
-- Python 3.11+
-- Docker (optional, for containerization)
-- OpenAI API key (or Ollama for local LLM setup)
-- Git (for version control)
-
-### Step 1: Clone & Install Dependencies
-
-```bash
-# Navigate to project directory
-cd sap-cxii-tech-ex-02
-
-# Create virtual environment (optional but recommended)
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install all required packages
-pip install -r requirements.txt
-```
-
-### Step 2: Configure Environment
-
-Create a `.env` file in the project root or set environment variables:
-
-```bash
-# LLM Provider Keys
-export OPENAI_API_KEY="sk-proj-your-api-key"
-export ANTHROPIC_API_KEY="your-anthropic-key"
-
-# Ollama (for local LLM)
-export OLLAMA_BASE_URL="http://localhost:11434"
-export OLLAMA_MODEL="llama3.1:8b"
-
-# Database
-export DB_PATH="db/orders.db"
-export NL2SQL_LOG_PATH="logs/nl2sql_requests.jsonl"
-
-# Tenant Configuration
-export DEFAULT_TENANT_ID="tenant_US"
-
-# Responsible AI
-export ENABLE_ABUSE_GUARDRAILS="true"
-export MAX_QUESTION_LENGTH="1000"
-```
-
-### Step 3: Initialize Database & Indexes
-
-```bash
-# Ensure required directories exist
-mkdir -p db logs artifacts/semantic_index
-
-# Initialize database schema
-python -c "from src.db_layer.schema_manager import SchemaManager; SchemaManager().create_schema()"
-
-# Load sample data (optional)
-python etl.py
-```
-
-### Step 4: Build Semantic Indexes
-
-```bash
-# Build FAISS vector indexes from order data
-python -c "from src.search.index_builder import build_semantic_index; build_semantic_index()"
-```
-
-### Step 5: Run the Application
-
-```bash
-# Development mode (auto-reload enabled)
-uvicorn app:app --reload --host 0.0.0.0 --port 8000
-
-# Production mode
-uvicorn app:app --host 0.0.0.0 --port 8000 --workers 4
-```
-
-The application will start at `http://localhost:8000`
-
-- **API Documentation**: Visit `http://localhost:8000/docs` (Swagger UI)
-- **ReDoc**: Visit `http://localhost:8000/redoc` (ReDoc documentation)
-- **Health Check**: `http://localhost:8000/healthz`
-
-## 📚 API Endpoints
-
-### Health & Status
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/healthz` | GET | Basic health check |
-| `/health` | GET | Detailed health status |
-| `/health/ready` | GET | Readiness probe for K8s |
-
-### Order Management
-
-| Endpoint | Method | Description | Auth |
-|----------|--------|-------------|------|
-| `/orders` | GET | List all orders (with pagination & filtering) | Optional |
-| `/orders` | POST | Create new order | Optional |
-| `/orders/{order_id}` | GET | Get specific order details | Optional |
-| `/orders/{order_id}` | PUT | Update order information | Optional |
-| `/orders/{order_id}` | DELETE | Delete an order | Optional |
-| `/orders/search` | POST | Semantic search across orders | Optional |
-
-### AI Query Interface
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/ask` | POST | Submit natural language query |
-| `/ask/nl2sql` | POST | Convert query to SQL (debug endpoint) |
-| `/semantic/search` | POST | Direct semantic search query |
-
-### Example Requests
-
-**Natural Language Query:**
-```bash
-curl -X POST "http://localhost:8000/ask" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "question": "What are the top 5 orders by value?",
-    "tenant_id": "tenant_US"
-  }'
-```
-
-**Create Order:**
-```bash
-curl -X POST "http://localhost:8000/orders" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "customer_id": "C123",
-    "order_date": "2024-05-22",
-    "total_amount": 1500.00,
-    "items": [...]
-  }'
-```
-
-**Semantic Search:**
-```bash
-curl -X POST "http://localhost:8000/semantic/search" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "expensive orders from valued customers",
-    "limit": 10
-  }'
-```
-
-## 🐳 Docker Deployment
-
-### Build Docker Image
-
-```bash
-# Build using multi-stage build
-docker build -t sap-ai-orders:latest .
-
-# Run container
-docker run -p 8000:8000 \
-  -e OPENAI_API_KEY="sk-proj-..." \
-  -e DB_PATH="/app/db/orders.db" \
-  -v $(pwd)/db:/app/db \
-  -v $(pwd)/logs:/app/logs \
-  -v $(pwd)/artifacts:/app/artifacts \
-  sap-ai-orders:latest
-```
-
-### Docker Compose (if available)
-
-```bash
-docker-compose up -d
-docker-compose logs -f
-docker-compose down
-```
-
-## ☸️ Kubernetes Deployment
-
-### Prerequisites
-- kubectl configured with cluster access
-- Docker image pushed to registry
-
-### Deploy to Kubernetes
-
-```bash
-# Apply ConfigMap with environment configuration
-kubectl apply -f k8s/configmap.yaml
-
-# Deploy the application
-kubectl apply -f k8s/deployment.yaml
-
-# Expose service
-kubectl apply -f k8s/service.yaml
-
-# Verify deployment
-kubectl get pods
-kubectl get svc
-kubectl logs -f deployment/sap-ai-orders
-```
-
-### Scaling
-
-```bash
-# Scale to 3 replicas
-kubectl scale deployment/sap-ai-orders --replicas=3
-
-# Auto-scaling (requires metrics server)
-kubectl autoscale deployment sap-ai-orders --min=2 --max=10 --cpu-percent=80
-```
-
-### Port Forwarding
-
-```bash
-kubectl port-forward svc/sap-ai-orders 8000:8000
-```
-
-## 📊 Logging & Monitoring
-
-### Request Logging
-
-All NL2SQL queries and semantic searches are logged in JSONL format:
-
-```bash
-# View request logs
-tail -f logs/nl2sql_requests.jsonl | jq
-
-# Example log entry
-{
-  "timestamp": "2024-05-22T10:30:45.123Z",
-  "request_id": "req-12345",
-  "tenant_id": "tenant_US",
-  "query": "top 5 orders by value",
-  "generated_sql": "SELECT * FROM orders ORDER BY amount DESC LIMIT 5",
-  "execution_time_ms": 145,
-  "tokens_used": 320,
-  "provider": "openai"
-}
-```
-
-### Token Tracking
-
-Monitor LLM usage per provider:
-
-```bash
-# Check token log in logs/nl2sql_requests.jsonl
-grep "tokens_used" logs/nl2sql_requests.jsonl | jq '.tokens_used'
-```
-
-### Application Metrics
-
-- **Response Times**: Track in logs via `execution_time_ms`
-- **Error Rates**: Query failures logged with error details
-- **Provider Usage**: Distribute queries across OpenAI, Anthropic, Ollama
-- **Index Health**: Monitor FAISS index size and freshness
-
-## 🔒 Responsible AI & Security
-
-### PII Protection
-
-```python
-# Automatic PII redaction in logs
-# Masks: SSN, credit cards, email, phone numbers
-# Location: src/ai/pii_redaction.py
-```
-
-### Request Validation
-
-```python
-# Request length validation
-MIN_QUESTION_LENGTH = 3
-MAX_QUESTION_LENGTH = 1000
-
-# Intent classification
-# Ensures requests align with business logic
-# Blocks potential SQL injection or abuse
-```
-
-### Guardrails
-
-```python
-# src/ai/responsible_ai_guardrails.py provides:
-- Request sanitization
-- SQL injection prevention
-- Token limit enforcement
-- Rate limiting per tenant
-```
-
-### Audit & Compliance
-
-- All requests logged with tenant context
-- Timestamp and execution details captured
-- Generated SQL stored for review
-- Response time and token usage tracked
-
-## 🧪 Testing & Development
-
-### Run Tests
-
-```bash
-# Install test dependencies
-pip install pytest pytest-cov
-
-# Run all tests
-pytest
-
-# Run specific module tests
-pytest tests/test_nl2sql.py -v
-
-# Generate coverage report
-pytest --cov=src tests/ --cov-report=html
-```
-
-### Local Development Setup
-
-```bash
-# 1. Install development dependencies
-pip install -r requirements.txt
-pip install black flake8 mypy
-
-# 2. Code formatting
-black src/
-
-# 3. Linting
-flake8 src/
-
-# 4. Type checking
-mypy src/
-
-# 5. Run tests with coverage
-pytest --cov=src tests/
-```
-
-### Database Management
-
-```bash
-# Reset database (⚠️ WARNING: Deletes all data)
-rm db/orders.db
-python -c "from src.db_layer.schema_manager import SchemaManager; SchemaManager().create_schema()"
-
-# Clean runtime artifacts
-python scripts/clean_runtime_data.py
-
-# Generate test data
-python scripts/generate_orders_100_cases.py
-```
-
-## 🔧 Advanced Configuration
-
-### Tenant Routing
-
-Configure which LLM provider each tenant uses:
-
-```python
-# src/config.py
-TENANT_LLM_MAP = {
-    "tenant_KSA": "ollama",          # Use local Ollama
-    "tenant_US": "openai",           # Use OpenAI
-    "tenant_EU": "openai",           # Use OpenAI
-}
-```
-
-### LLM Model Selection
-
-```env
-# OpenAI
-OPENAI_MODEL=gpt-4o-mini            # Fast, cost-effective
-OPENAI_MODEL=gpt-4                   # More capable
-
-# Anthropic
-ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
-
-# Ollama (local, free)
-OLLAMA_MODEL=llama3.1:8b
-OLLAMA_MODEL=mistral:latest
-```
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**Issue**: `ModuleNotFoundError: No module named 'openai'`
-```bash
-# Solution: Reinstall dependencies
-pip install --upgrade -r requirements.txt
-```
-
-**Issue**: `Connection refused: localhost:11434` (Ollama)
-```bash
-# Solution: Start Ollama service
-ollama serve
-# In another terminal, pull a model:
-ollama pull llama3.1:8b
-```
-
-**Issue**: `FAISS index not found`
-```bash
-# Solution: Rebuild indexes
-python -c "from src.search.index_builder import build_semantic_index; build_semantic_index()"
-```
-
-**Issue**: Database locked error
-```bash
-# Solution: Ensure only one process accesses the database
-# Check running processes and close duplicates
-lsof | grep orders.db
-```
-
-### Debug Mode
-
-```bash
-# Enable verbose logging
-export LOG_LEVEL=DEBUG
-uvicorn app:app --reload --log-level debug
-```
-
-## 📖 Documentation & References
-
-### Core Components
-- **[NL2SQL Engine](src/ai/nl2sql.py)** - Query-to-SQL translation logic
-- **[Semantic Search](src/search/semantic_search_service.py)** - Vector similarity search
-- **[LLM Router](src/ai/llm_router.py)** - Provider selection and fallback
-- **[ETL Pipeline](src/etl/)** - Data extraction, transformation, loading
-- **[Database Layer](src/db_layer/)** - SQLite management and queries
-
-### External Resources
-- [FAISS Documentation](https://github.com/facebookresearch/faiss)
-- [FastAPI Guide](https://fastapi.tiangolo.com/)
-- [OpenAI API Docs](https://platform.openai.com/docs)
-- [Anthropic Documentation](https://www.anthropic.com/docs)
-- [Sentence Transformers](https://www.sbert.net/)
-
-## 🤝 Contributing
-
-1. Create a feature branch: `git checkout -b feature/my-feature`
-2. Make changes and add tests
-3. Run linting: `black src/ && flake8 src/`
-4. Run tests: `pytest`
-5. Commit and push: `git push origin feature/my-feature`
-6. Open a pull request
-
-## 📝 License
-
-SAP Internal - Technical Exercise
+- Orders are assumed to be immutable once submitted
+- Therefore, historical versioning of orders is not maintained
 
 ---
 
-**Project Status**: Active Development  
-**Last Updated**: May 2026  
-**Version**: 1.0.0  
-**Python Version**: 3.11+  
-**Maintainer**: SAP AI Team
+# 4.a AI-Augmented Query Layer
+---
 
+### 4.a Model Selection Write-Up
+
+The Text2SQL implementation uses **GPT-4o-mini** as the primary LLM.
+
+---
+
+### Key Reasons for Selection
+
+#### 1. Context Window Support
+
+GPT-4o-mini supports up to a **128K token context window**, which is sufficient for this use case involving:
+
+- Database schema metadata  
+- Table and column descriptions  
+- Prompt instructions  
+- Few-shot SQL examples included in the prompt  
+- Natural language user queries  
+
+This allows complete schema-aware reasoning in a single request.
+
+---
+
+#### 2. Cost Efficiency
+
+- Input cost: **$0.15 per 1M tokens**  
+- Output cost: **$0.60 per 1M tokens**
+
+From an operational cost perspective, this is significantly lower compared to larger GPT models and other LLM providers such as Claude models.
+
+---
+
+#### 3. Strong Structured Reasoning Capability
+
+The model performs well in structured generation tasks such as:
+
+- SQL query construction  
+- Schema understanding  
+- Column mapping  
+- Aggregation logic generation  
+- Filter interpretation  
+
+Its ~**82% MMLU score** indicates strong general reasoning ability while maintaining low cost and latency.
+
+---
+
+#### 4. Low Latency for Interactive Querying
+
+- Typical first-token latency: **~200–600 ms**
+
+This makes it suitable for real-time Text2SQL applications.
+
+---
+
+## Conclusion
+
+Overall, GPT-4o-mini provides a strong balance of:
+
+- Cost efficiency  
+- Latency performance  
+- Reasoning capability  
+- Context handling ability  
+
+This makes it well-suited for a constrained, schema-grounded Text2SQL system.
+
+
+## 4.a System Prompt
+
+> System Prompt used in the Text2SQL engine.  
+> Note: We can reduce token usage by removing unnecessary fields such as original currency and original amount.
+
+---
+
+### SYSTEM PROMPT
+
+```text
+SYSTEM PROMPT:
+
+You are an enterprise-grade SQLite SQL generation agent.
+
+Your responsibility is to convert natural language business questions into ONE safe, correct, and deterministic SQLite SELECT query using the provided schema.
+
+--------------------------------------------------
+CONTEXT
+--------------------------------------------------
+
+Available schema:
+Table: orders
+Columns: der_id TEXT, customer_id TEXT, order_date TEXT, amount_usd REAL, original_amount REAL, original_currency TEXT, updated_at TEXT
+
+You DO NOT have access to actual data — only schema metadata.
+
+IMPORTANT:
+You must still generate SQL for ranking queries (highest, top, maximum) because SQL execution will resolve them.
+
+--------------------------------------------------
+CORE OBJECTIVE
+--------------------------------------------------
+
+Generate a single SQLite SELECT query that:
+- accurately reflects the user’s intent
+- uses only available schema columns
+- follows strict safety, correctness, and formatting rules
+
+--------------------------------------------------
+OUTPUT FORMAT (STRICT CONTRACT)
+--------------------------------------------------
+
+Return VALID JSON ONLY:
+
+{
+  "can_answer": true or false,
+  "reason": "short explanation",
+  "sql": "single SQLite SELECT query OR empty string"
+}
+
+--------------------------------------------------
+SQL SAFETY RULES
+--------------------------------------------------
+
+1. ONLY SELECT queries
+2. NO INSERT, UPDATE, DELETE, DROP, ALTER
+3. ONE query only
+4. Use schema columns only
+5. SQLite syntax only
+
+--------------------------------------------------
+AGGREGATION RULES
+--------------------------------------------------
+
+For TOTAL / SUM queries:
+
+SELECT
+SUM(amount_usd) AS total_revenue,
+COUNT(*) AS order_count
+FROM orders
+
+--------------------------------------------------
+ADVANCED AGGREGATION RULES (CRITICAL FIX)
+--------------------------------------------------
+
+Queries asking for:
+- highest
+- top
+- maximum
+- largest
+
+MUST be handled using SQL, NOT rejected.
+
+Use:
+
+SELECT
+customer_id,
+SUM(amount_usd) AS total_revenue
+FROM orders
+GROUP BY customer_id
+ORDER BY total_revenue DESC
+LIMIT 1
+
+NEVER reject these queries.
+
+--------------------------------------------------
+EXPLORATORY QUERIES
+--------------------------------------------------
+
+SELECT
+order_id,
+customer_id,
+amount_usd,
+order_date
+FROM orders
+ORDER BY order_date DESC
+
+--------------------------------------------------
+IDENTIFIER RULES
+--------------------------------------------------
+
+- Use only IDs present in question
+- Never guess IDs
+
+--------------------------------------------------
+DATE RULES
+--------------------------------------------------
+
+"last N days" →
+order_date >= date('now', '-N days')
+
+--------------------------------------------------
+WHEN TO REJECT
+--------------------------------------------------
+
+Reject ONLY if:
+- Non-SQL request
+- Column missing
+- Invalid operation (non-SELECT)
+
+DO NOT reject aggregation queries like "highest revenue"
+
+--------------------------------------------------
+FINAL CHECK
+--------------------------------------------------
+
+- JSON valid
+- SQL valid
+- SELECT only
+- Matches intent
+```
+
+### 4.a. Retry Bad SQL Scenario
+
+The retry loop was intentionally executed as a simulation, since the primary LLM is always  generating  correct SQL queries in normal execution.
+
+### Bad SQL Used
+
+```sql id="x0nq3k"
+SELECT SUM(non_existing_amount_column) FROM orders;
+
+SQL failed dry-run validation: no such column: non_existing_amount_column
+Please generate a corrected SQLite query using only the available schema.
+
+### Retry Correction
+SELECT * FROM orders WHERE customer_id = 'CUSTOMER_REF_1';
+```
+## Guardrails, Security, Routing, and Observability
+
+### 1. Pre-LLM Safety Guardrails
+
+For this assessment, the following guardrails have been implemented:
+- Input validation guardrails
+- Prompt injection protection
+- Jailbreak / safety bypass detection
+- SQL injection protection at the input level
+- Domain restriction guardrails
+- Secret / credential leakage prevention
+- Abusive content filtering
+
+For a real-world enterprise deployment, additional guardrails can be added depending on the use case, data sensitivity, compliance requirements, and model provider risk profile.
+
+---
+
+### 2. PII Protection
+
+No raw PII or sensitive business identifiers are shared with the LLM.
+
+---
+
+### 3. Authentication, Authorization, and API Controls
+This assessment assumes that users invoking the APIs are already authenticated and authorized through enterprise security controls such as:
+
+- OAuth-based authentication
+- RBAC-based authorization
+- API Gateway-level throttling and rate limiting
+---
+### 4. Agent Architecture Pattern
+
+In a production enterprise system, this use case would typically follow a multi-agent architecture, where each responsibility is implemented as an independently scalable service.
+
+---
+### 5. Tenant-Based LLM Routing
+Tenant-based LLM routing has been implemented in the architecture.
+
+---
+### 6. Observability and Monitoring
+For this assessment, logging is implemented locally to keep the solution lightweight and self-contained.
+
+---
+
+# 4.b Semantic Search:
+This project uses semantic (vector-based) search instead of SQL filtering by enriching each record with additional textual features for embedding. We introduce Recency_Value (recent vs old based on time thresholds) and Monetary_Value (high-value vs low-value based on amount distribution).
+
+We also derive a combined Recency_Monetary_Value label (e.g., Recent_HighValue, Recent_Cheap, Old_HighValue, Old_Cheap) using configurable thresholds such as 30 days for “recent”, 1 year for “old”, >$300 for “high value”, and <$50 for “low value”, enabling more accurate semantic retrieval through better clustering in vector space.
+
+### Why FAISS 
+FAISS index is used for scalable nearest-neighbor vector retrieval, avoiding brute-force NumPy comparison against every vector with O(n) linear search complexity while providing optimized similarity search and storage for embedding-based semantic search.
+
+### Why sentence-transformers/all-MiniLM-L6-v2
+The embedding model used is sentence-transformers/all-MiniLM-L6-v2, which generates compact 384-dimensional embeddings suitable for efficient storage and semantic search over structured order features.
+It is lightweight, CPU-friendly, quick to load into memory, and provides good ROI for this assessment because it avoids external API cost while still supporting reliable similarity-based retrieval
+### Index Rebuild
+The system uses a blue/green index strategy where one index serves active search traffic while the inactive index is rebuilt during ETL.
+After a successful rebuild, the active pointer is updated and the API reload endpoint switches the retriever to the new index without blocking in-flight requests.
+
+# 4.d 
+#### 1 Tenant Isolation for Vector Index
+
+For tenant isolation in the vector index, there are two common options: a shared FAISS index with namespace filtering, or a separate index per tenant.
+
+- **Shared index**: Lower memory and operational overhead, but requires strict filtering and introduces higher risk of data leakage or variable latency.
+- **Per-tenant index**: Provides stronger data isolation, predictable latency, and simpler compliance boundaries, but increases memory usage and operational cost.
+
+For an enterprise-grade design, the preferred approach is to use **regional control planes with per-tenant indexes deployed in the customer’s required geography**. This provides stronger isolation and compliance alignment, while accepting the trade-off of higher infrastructure and operational complexity.
+
+#### 2 LLM Backend Routing per Tenant
+Some enterprise customers may require requests to be routed to an on-premise or privately hosted model, such as a private Llama deployment, instead of a public cloud API.
+
+In this architecture, the routing layer sits between the application/orchestration layer and the LLM providers. The application sends the tenant ID, prompt, and request context to an LLM router, and the router decides whether the request should be served by a cloud API, a private hosted endpoint, or an on-premise model.
+
+This follows an **AI Gateway / LLM Gateway** pattern, where tenant-to-provider mapping is handled centrally. To keep the prompt layer model-agnostic, prompts are maintained in a provider-neutral format, while provider-specific differences such as API parameters, model names, authentication, and response parsing are handled inside the adapter layer.
+#### 3 PII Guardrails in the NL-to-SQL Pipeline
+
+The NL-to-SQL pipeline applies guardrails before the user question and schema context are sent to the LLM. These include schema minimization, PII redaction, and query intent validation to reduce exposure of sensitive information such as `customer_id` and monetary values.
+
+A strict zero-trust approach is followed for PII handling. Sensitive values are masked before reaching the LLM, and the model is instructed to use only the provided schema and not infer or generate hidden identifiers. In our assessment also we have masked the PIIs before sending to LLMs
+
+If the LLM is a third-party cloud API, these controls are critical to reduce external data exposure. If the LLM is deployed on-premise, the exposure risk is reduced, but the same guardrails are still required to prevent over-broad SQL generation, unauthorized access patterns, prompt injection, and unsafe query behavior.
+#### 4 Key Architectural Decision and Trade-off
+
+My architectural decision is to use **per-tenant, region-bound isolation** as the default approach for retrieval and inference policy enforcement.
+
+This means each tenant can have its own isolated vector index and LLM routing policy within the required geography, which improves data isolation, compliance alignment, and reduces the risk of cross-tenant data leakage.
+
+The trade-off accepted is higher infrastructure cost and operational complexity compared to a shared-index model, but this is justified for enterprise workloads where security, regulatory compliance, and tenant-level isolation are more important than minimizing infrastructure footprint.Also the avaiability 
