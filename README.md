@@ -41,7 +41,89 @@ This project showcases a complete AI application stack featuring:
 └─────────────────────────────────────────┘
 ```
 
-## 🚀 Key Features
+## ⚡ Quick Start (Reviewer Setup)
+
+### Environment Setup
+
+This section explains the minimal steps required to run the system locally.
+Follow this exact order to run the system.
+
+git clone https://github.com/giriDSML/sap-cxii-tech-ex-02.git   
+cd sap-cxii-tech-ex-02
+### Create virutal environment
+python -m venv venv  
+
+### Activate environment:
+source venv/bin/activate (Linux)           
+venv\Scripts\activate (Windows)            
+
+###  Install Dependencies
+pip install -r requirements.txt         
+### Configure Environment Variables
+OPENAI_API_KEY=your_openai_key      
+OPENAI_MODEL=gpt-4o-mini    
+### Run ETL Pipeline ( Mandatory).
+python etl.py load data/orders.csv
+### Start FastAPI Server
+uvicorn app:app --reload
+### Service runs at
+http://127.0.0.1:8000/docs
+
+## 📚 API Endpoints
+
+### Health & Status
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/healthz` | GET | Basic health check |
+
+
+### Order Management
+
+| Endpoint | Method | Description | Auth |
+|----------|--------|-------------|------|
+| ` /orders/customer/{customer_id}` | GET | List all orders for given customerID | Optional |
+| ` /orders/stats` | GET | Get Order Stats | Optional |
+| ` /orders/recent?days=N` | GET |Get Order for N recent days| Optional |
+
+
+### AI Query Interface
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| ` /ask` | POST | Submit natural language query |
+| ` /semantic/search` | POST | Direct semantic search query |  
+### Example for ask API
+curl -X POST "http://127.0.0.1:8000/ask" \
+-H "Content-Type: application/json" \
+-d '{"query": "What is the total revenue from customer C123"}'
+
+### Example for semantic/search API
+curl -X POST "http://127.0.0.1:8000/semantic/search" \
+-H "Content-Type: application/json" \
+-d '{"query": "recent expensive orders", "top_k": 5}'
+
+
+### Request Logging
+
+All NL2SQL queries and semantic searches are logged in JSONL format:
+
+```bash
+# View request logs
+tail -f logs/nl2sql_requests.jsonl | jq
+
+# Example log entry
+{
+  "timestamp": "2024-05-22T10:30:45.123Z",
+  "request_id": "req-12345",
+  "tenant_id": "tenant_US",
+  "query": "top 5 orders by value",
+  "generated_sql": "SELECT * FROM orders ORDER BY amount DESC LIMIT 5",
+  "execution_time_ms": 145,
+  "tokens_used": 320,
+  "provider": "openai"
+}
+```
 
 ### AI & Intelligence
 - **NL2SQL Conversion**: Transforms natural language queries to parameterized SQL with schema awareness
