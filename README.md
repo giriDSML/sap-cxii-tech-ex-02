@@ -119,6 +119,9 @@ docker run -d -p 8000:8000 \
 |----------|--------|-------------|
 | ` /ask` | POST | Submit natural language query |
 | ` /semantic/search` | POST | Direct semantic search query |  
+
+**Note**: Tenant ID is optional in ask API and default we are using OpenAI LLM , for this assessment. Tenant to LLM mapping exist in config ,example "tenant_US": "openai". So pls keep it empty or tenant_US
+
 ### Example for ask API
 curl -X POST "http://127.0.0.1:8000/ask" \
 -H "Content-Type: application/json" \
