@@ -571,11 +571,11 @@ For this assessment, logging is implemented locally to keep the solution lightwe
 ---
 
 # 4.b Semantic Search:
-This project uses semantic (vector-based) search by enriching each record with additional textual features for embedding. We introduce Recency_Value (recent vs old based on date distribution) and Monetary_Value (high-value vs low-value based on amount distribution). 
+This project uses semantic (vector-based) search by enriching each record with additional textual features for embedding. We introduce Recency_Value (recent vs old based on date distribution) and Monetary_Value (high-value vs low-value based on amount distribution). Data can be divided into quartiles and can be assigned these buckets, for this case i have assigned to top 10
 
-We also derive a combined Recency_Monetary_Value label (e.g., Recent_HighValue, Recent_Cheap, Old_HighValue, Old_Cheap) using configurable thresholds such as 30 days for “recent”, 1 year for “old”, >$300 for “high value”, and <$50 for “low value”, enabling more accurate semantic retrieval through better clustering in vector space. 
+We also derive a combined Recency_Monetary_Value label (e.g., Recent_HighValue, Recent_Cheap, Old_HighValue, Old_Cheap) using configurable thresholds such as 30 days for “recent”, 1 year for “old”, >$300 for “high value”, and <$50 for “low value”, enabling more accurate semantic retrieval through better clustering in vector space. These values to be configurable in real world.
 
-Assumption is this search is not meant for SQL filter/analytics queries , its only a semantic search 
+Assumption is this search is not meant for SQL filter/analytics queries , its only a semantic search . 
 
 ### Why FAISS 
 FAISS index is used for scalable nearest-neighbor vector retrieval, avoiding brute-force NumPy comparison against every vector with O(n) linear search complexity while providing optimized similarity search and storage for embedding-based semantic search.
