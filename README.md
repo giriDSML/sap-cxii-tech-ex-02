@@ -44,30 +44,56 @@ This project showcases a complete AI application stack featuring:
 ## ⚡ Quick Start (Reviewer Setup)
 
 ### Environment Setup
-
+```
 This section explains the minimal steps required to run the system locally.
 Follow this exact order to run the system.
 
 git clone https://github.com/giriDSML/sap-cxii-tech-ex-02.git   
 cd sap-cxii-tech-ex-02
+```
 ### Create virutal environment
+```
 python -m venv venv  
-
+```
 ### Activate environment:
+```
 source venv/bin/activate (Linux)           
 venv\Scripts\activate (Windows)            
-
+```
 ###  Install Dependencies
-pip install -r requirements.txt         
+```
+pip install -r requirements.txt
+```
 ### Configure Environment Variables
+```
 OPENAI_API_KEY=your_openai_key      
-OPENAI_MODEL=gpt-4o-mini    
+OPENAI_MODEL=gpt-4o-mini
+``` 
 ### Run ETL Pipeline ( Mandatory).
+```
 python etl.py load data/orders.csv
+```
 ### Start FastAPI Server
+```
 uvicorn app:app --reload
+```
 ### Service runs at
+```
 http://127.0.0.1:8000/docs
+
+```
+## Build Docker Image
+
+```bash
+docker build -t sap-ai-orders:latest .
+
+
+# Run container
+docker run -d -p 8000:8000 \
+  -e OPENAI_API_KEY=your_api_key_here \
+  --name orders-api \
+  sap-ai-orders:latest
+```
 
 ## 📚 API Endpoints
 
